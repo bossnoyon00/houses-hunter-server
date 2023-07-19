@@ -107,7 +107,62 @@ async function run() {
             }
         });
 
-       
+        // log in a user
+        app.post("/users/login", async (req, res) => {
+            const userEmail = req.body.email;
+            const userPass = req.body.password;
+
+            // get the user
+            const user = await usersColl.findOne({ email: userEmail });
+            if (user) {
+                bcrypt.compare(userPass, user?.password, async (err, isMatch) => {
+                    if (isMatch) {
+                        await usersColl.updateOne(
+                            { email: user?.email },
+                            { $set: { isLoggedIn: true } }
+                        );
+
+                        // generate a new token
+                        const userInfo = { email: req.body?.email };
+                        const token = jwt.sign(userInfo, process.env.JWT_SECRET_KEY, {
+                            expiresIn: "1h",
+                        });
+
+                        // user data filter
+                        const { password, ...newUser } = user;
+                        res.send({ isLogin: true, token, newUser });
+                    }
+                    if (!isMatch) res.status(401).send({ isLogin: false });
+                });
+            } else {
+                res.status(401).send({ isLogin: false });
+            }
+        });
+
+        // get is user logged in
+        app.get("/users", async (req, res) => {
+            const userEmail = req.query.email;
+            const targetUser = await usersColl.findOne({ email: userEmail });
+            const { password, ...newUser } = targetUser;
+            res.send(newUser);
+        });
+
+        // log out a user
+        app.get("/users/logout/:email", async (req, res) => {
+            await usersColl.updateOne(
+                { email: req.params.email },
+                { $set: { isLoggedIn: false } }
+            );
+            res.send({ isLogout: true });
+        });
+
+        // post a house
+        app.post("/houses", async (req, res) => {
+            const result = await housesColl.insertOne(req.body);
+
+            res.send(result);
+        });
+
         // get all house
         app.get("/allHouses", async (req, res) => {
             const result = await housesColl.find().toArray();
@@ -143,48 +198,7 @@ async function run() {
                 filters.bathrooms = bathrooms;
             }
 
-            // Filter by Room Size
-            const roomSize = parseInt(req.query.roomSize);
-            if (!isNaN(roomSize)) {
-                filters.room_size = { $gte: roomSize };
-            }
-
-            // Filter by Rent per month
-            const rentPerMonth = parseInt(req.query.rentPerMonth);
-            if (!isNaN(rentPerMonth)) {
-                filters.rent_per_month = rentPerMonth;
-            }
-
-            // Filter by Selected Date
-            const selectedDate = req.query.selectedDate;
-            if (selectedDate) {
-                filters.date = selectedDate;
-            }
-
-            let result = [];
-
-            if (search || Object.keys(filters).length > 0) {
-                result = await housesColl
-                    .find({
-                        $and: [
-                            {
-                                $or: [
-                                    { city: { $regex: searchRegex } },
-                                    { bedrooms: { $eq: bedrooms } },
-                                ],
-                            },
-                            filters,
-                        ],
-                    })
-                    .toArray();
-            } else {
-                result = await housesColl.find().toArray();
-            }
-
-            const paginatedHouses = result.slice(skip, skip + limit);
-
-            res.send(paginatedHouses);
-        });
+           
 
         // get individual owners houses
         app.get("/houses/:email", authGuard, async (req, res) => {
