@@ -198,7 +198,48 @@ async function run() {
                 filters.bathrooms = bathrooms;
             }
 
-           
+            // Filter by Room Size
+            const roomSize = parseInt(req.query.roomSize);
+            if (!isNaN(roomSize)) {
+                filters.room_size = { $gte: roomSize };
+            }
+
+            // Filter by Rent per month
+            const rentPerMonth = parseInt(req.query.rentPerMonth);
+            if (!isNaN(rentPerMonth)) {
+                filters.rent_per_month = rentPerMonth;
+            }
+
+            // Filter by Selected Date
+            const selectedDate = req.query.selectedDate;
+            if (selectedDate) {
+                filters.date = selectedDate;
+            }
+
+            let result = [];
+
+            if (search || Object.keys(filters).length > 0) {
+                result = await housesColl
+                    .find({
+                        $and: [
+                            {
+                                $or: [
+                                    { city: { $regex: searchRegex } },
+                                    { bedrooms: { $eq: bedrooms } },
+                                ],
+                            },
+                            filters,
+                        ],
+                    })
+                    .toArray();
+            } else {
+                result = await housesColl.find().toArray();
+            }
+
+            const paginatedHouses = result.slice(skip, skip + limit);
+
+            res.send(paginatedHouses);
+        });
 
         // get individual owners houses
         app.get("/houses/:email", authGuard, async (req, res) => {
@@ -254,28 +295,7 @@ async function run() {
             res.send(result);
         });
 
-        // get renter booking houses
-        app.get("/bookings/renter/:email", async (req, res) => {
-            const result = await bookingsColl
-                .find({ renterEmail: req.params.email })
-                .toArray();
-            res.send(result);
-        });
-
-        // booking a house
-        app.post("/bookings", async (req, res) => {
-            // update booking status
-            const bookedHouseId = req.body.bookedHouseId;
-            await housesColl.updateOne(
-                { _id: new ObjectId(bookedHouseId) },
-                { $set: { isBooking: true } }
-            );
-
-            // add house to booking
-            const result = await bookingsColl.insertOne(req.body);
-
-            res.send(result);
-        });
+      
 
         // get renter bookings number
         app.get("/bookings/renter-number/:email", async (req, res) => {
