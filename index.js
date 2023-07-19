@@ -295,7 +295,28 @@ async function run() {
             res.send(result);
         });
 
-      
+        // get renter booking houses
+        app.get("/bookings/renter/:email", async (req, res) => {
+            const result = await bookingsColl
+                .find({ renterEmail: req.params.email })
+                .toArray();
+            res.send(result);
+        });
+
+        // booking a house
+        app.post("/bookings", async (req, res) => {
+            // update booking status
+            const bookedHouseId = req.body.bookedHouseId;
+            await housesColl.updateOne(
+                { _id: new ObjectId(bookedHouseId) },
+                { $set: { isBooking: true } }
+            );
+
+            // add house to booking
+            const result = await bookingsColl.insertOne(req.body);
+
+            res.send(result);
+        });
 
         // get renter bookings number
         app.get("/bookings/renter-number/:email", async (req, res) => {
